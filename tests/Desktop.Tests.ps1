@@ -149,6 +149,7 @@ Describe "make-preset.ps1" {
         $script:Cmd | Should -Match '--models-preset'
         $script:Cmd | Should -Match '--host 0\.0\.0\.0'
         $script:Cmd | Should -Match '(?m)^@echo off'
+        $script:Cmd | Should -Match ('(?m)^set LLAMA_CACHE=' + [regex]::Escape($script:Models))
     }
     It "fails when a model file is missing" {
         $empty = New-TempDir
