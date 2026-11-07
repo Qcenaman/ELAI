@@ -171,4 +171,4 @@ Write-Note "hub: $hub"
 Write-Note ("contextsaver: " + $(if ($cs) { $cs } else { "(not configured)" }))
 if ($ts) { Write-Note "tokensaver: $ts" }
 Write-Note "rules: $rulesDst"
-Write-Note "default model elai/coder, agents elai-coder (primary) and elai-reviewer (subagent); planner variant: elai/planner#fast"
+Write-Note "default model elai/coder (agent elai-coder); elai/coder#fast = thinking off"

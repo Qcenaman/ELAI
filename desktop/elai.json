@@ -13,43 +13,21 @@
     ]
   },
   "router": {
-    "modelsMax": 2,
+    "modelsMax": 1,
     "cacheRamMiB": 8192
   },
   "models": {
     "coder": {
       "enabled": true,
-      "role": "primary coder - Qwen3-Coder-Next 80B-A3B; attention on GPU, experts in system RAM (cpuMoe) so the planner fits next to it. Solo tip: planner enabled=false + cpuMoe=false + cpuMoeLayers=20 for a faster coder",
-      "repo": "unsloth/Qwen3-Coder-Next-GGUF",
-      "file": "Qwen3-Coder-Next-UD-Q4_K_S.gguf",
-      "sizeBytes": 46079830016,
-      "ctx": 131072,
-      "slots": 2,
-      "cpuMoe": true,
-      "threads": 8,
-      "loadOnStartup": true,
-      "reasoning": false,
-      "sampling": {
-        "temp": 1.0,
-        "top-p": 0.95,
-        "top-k": 40,
-        "min-p": 0.01,
-        "repeat-penalty": 1.05
-      },
-      "cpuMoeLayers": 0
-    },
-    "planner": {
-      "enabled": true,
-      "role": "planner / reviewer / test-writer - Qwen3.6-35B-A3B, fully on GPU",
-      "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
-      "file": "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
-      "sizeBytes": 20893015008,
-      "mmproj": "mmproj-F16.gguf",
-      "mmprojSizeBytes": 899283680,
-      "vision": false,
-      "ctx": 196608,
-      "slots": 3,
+      "role": "the one coding model - Qwen3.8-27B dense UD-Q6_K, 64K context, thinking on, fully on the RTX 5090 (same settings as the desktop shortcuts: D:\\ELAI\\launchers\\coder-64k.ini)",
+      "repo": "unsloth/Qwen3.8-27B-GGUF",
+      "file": "Qwen3.8-27B-UD-Q6_K.gguf",
+      "sizeBytes": 21983677344,
+      "ctx": 65536,
+      "slots": 1,
+      "cpuMoe": false,
       "cpuMoeLayers": 0,
+      "gpuLayers": 99,
       "loadOnStartup": true,
       "reasoning": true,
       "sampling": {

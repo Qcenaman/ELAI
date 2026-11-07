@@ -37,8 +37,8 @@ Describe "elai.json" {
         [int]$script:Settings.port | Should -BeGreaterThan 1023
         [int]$script:Settings.port | Should -BeLessThan 65536
     }
-    It "defines coder and planner with a repo, a file and a size" {
-        foreach ($n in @('coder', 'planner')) {
+    It "defines the coder with a repo, a file and a size" {
+        foreach ($n in @('coder')) {
             $m = $script:Settings.models.$n
             $m | Should -Not -BeNullOrEmpty
             $m.repo | Should -Match '^[\w.-]+/[\w.-]+$'
@@ -132,23 +132,22 @@ Describe "make-preset.ps1" {
         $rel = Get-ModelRelativePath -Repo $script:Settings.models.coder.repo -FileName $script:Settings.models.coder.file
         $script:Ini | Should -Match ('(?m)^model = .*' + [regex]::Escape($rel))
     }
-    It "puts part of the coder's experts in system RAM (solo mode)" {
+    It "puts the dense coder fully on the GPU with thinking in reasoning_content" {
         $coder = ($script:Ini -split '(?m)^\[coder\]')[1]
-        if ([bool]$script:Settings.models.coder.cpuMoe) {
-            $coder | Should -Match '(?m)^cpu-moe = true'
-        } else {
-            $coder | Should -Match ('(?m)^n-cpu-moe = ' + [int]$script:Settings.models.coder.cpuMoeLayers)
-        }
+        $coder | Should -Match '(?m)^n-gpu-layers = 99'
+        $coder | Should -Not -Match '(?m)^cpu-moe'
+        $coder | Should -Match '(?m)^reasoning-format = deepseek'
+        $coder | Should -Match '(?m)^ctx-size = 65536'
     }
-    It "generates the planner section with reasoning when it is enabled" {
+    It "skips a disabled model" {
         $tmpRoot = New-TempDir
         $json = Get-Content (Join-Path $script:Desktop "elai.json") -Raw | ConvertFrom-Json
-        $json.models.planner.enabled = $true
         $json.models.coder.enabled = $false
         $alt = Join-Path $tmpRoot "elai.json"
         $json | ConvertTo-Json -Depth 10 | Set-Content $alt
         $s2 = Get-ElaiSettings -Path $alt -RootOverride $tmpRoot -ModelsDirOverride $script:Models
-        @(Get-ModelNames -Settings $s2) | Should -Be @('planner')
+        @(Get-ModelNames -Settings $s2).Count | Should -Be 0
+        @(Get-ModelNames -Settings $s2 -All) | Should -Be @('coder')
     }
     It "writes context and slots per model" {
         $script:Ini | Should -Match ('(?m)^ctx-size = ' + [int]$script:Settings.models.coder.ctx)
@@ -189,17 +188,16 @@ Describe "opencode.elai.json" {
     It "lists the contextsaver MCP as the local AI's tools" {
         @($script:Oc.mcp.servers.contextsaver.command)[0] | Should -Be 'C:\x\contextsaver.exe'
     }
-    It "defines both hub models with tool support" {
-        foreach ($n in @('coder', 'planner')) {
-            $script:Oc.providers.elai.models.$n.modelID | Should -Be $n
-            $script:Oc.providers.elai.models.$n.capabilities.tools | Should -BeTrue
-        }
+    It "defines the hub coder with tool support and reasoning" {
+        $script:Oc.providers.elai.models.coder.modelID | Should -Be 'coder'
+        $script:Oc.providers.elai.models.coder.capabilities.tools | Should -BeTrue
+        $script:Oc.providers.elai.models.coder.compatibility.reasoningField | Should -Be 'reasoning_content'
+        $script:Oc.providers.elai.models.PSObject.Properties.Name | Should -Not -Contain 'planner'
     }
-    It "defines the coder and reviewer agents" {
+    It "defines the coder agent" {
         $script:Oc.agents.'elai-coder'.mode | Should -Be 'primary'
         $script:Oc.agents.'elai-coder'.model | Should -Be 'elai/coder'
-        $script:Oc.agents.'elai-reviewer'.mode | Should -Be 'subagent'
-        $script:Oc.agents.'elai-reviewer'.system | Should -Match 'APPROVED'
+        $script:Oc.agents.PSObject.Properties.Name | Should -Not -Contain 'elai-reviewer'
         @($script:Oc.instructions)[0] | Should -Be 'C:\x\ELAI-RULES.md'
     }
     It "ships the rules file the coder follows" {
@@ -226,7 +224,7 @@ Describe "install-opencode.ps1 -ConfigOnly" {
         $out.providers.elai.settings.baseURL | Should -Be 'http://10.0.0.5:8080/v1'
         @($out.mcp.servers.contextsaver.command)[0] | Should -Be $cs
         $out.mcp.servers.PSObject.Properties.Name | Should -Not -Contain 'tokensaver'
-        $out.providers.elai.models.planner.PSObject.Properties.Name | Should -Not -Contain 'disabled'
+        $out.providers.elai.models.coder.disabled | Should -BeNullOrEmpty
         $out.model | Should -Be 'elai/coder'
         [int]$out.providers.elai.models.coder.limit.context | Should -Be ([int]$script:Settings.models.coder.ctx / [int]$script:Settings.models.coder.slots)
         @($out.instructions).Count | Should -Be 1

@@ -1,11 +1,8 @@
-Desktop coding setup: both Qwen models + OpenCode + ContextSaver.
+Aligned with the desktop's new coder-only setup.
 
-**New**
-- Models live in LM Studio's layout (`D:\LLM MODELS\<publisher>\<repo>\<file>.gguf`), so one download serves both the llama-server hub and LM Studio/ContextSaver.
-- Per-model `enabled` flag in `desktop/elai.json`; disabled models are skipped by every script and hidden in OpenCode.
-- OpenCode's MCP tools default to **ContextSaver** (made for local models); TokenSaver is only added with `install-opencode.ps1 -WithTokenSaver`. The ELAI rules file now points the local coder at the contextsaver tools.
-- `get-models.ps1` downloads into the layout above; `make-preset.ps1` finds files there (or flat) automatically.
+**Changed**
+- The one model is now **Qwen3.8-27B dense UD-Q6_K** (`unsloth/Qwen3.8-27B-GGUF`, 22 GB, fully on the RTX 5090, 64K context, thinking on, 1 slot). The planner (Qwen3.6-35B-A3B) and the MoE coder (Qwen3-Coder-Next) are gone from `elai.json`, the OpenCode template (no `elai/planner`, no `elai-reviewer` agent) and the generated preset.
+- `make-preset.ps1` honors an explicit `gpuLayers` per model; the generated `models.ini` / `start-hub.cmd` now produce exactly the settings of the desktop shortcuts (`D:\ELAI\launchers\coder-64k.ini`, `--models-max 1`).
+- Tests follow the single-model layout.
 
-**Verified on the desktop**
-- Hub with both models resident (30.6 of 32.6 GB VRAM): coder 18-34 tok/s, planner ~250 tok/s, tool calls OK on both.
-- OpenCode v2.2.6 -> hub `coder` -> ContextSaver `pc` tool (scan/find) works end to end.
+**Measured on the desktop (from the coding-agents chat)**: 24.3 of 32.6 GB VRAM, 55-63 tok/s generation, ~2,960 tok/s prompt, tool calls OK, 50K-token prompt handled.

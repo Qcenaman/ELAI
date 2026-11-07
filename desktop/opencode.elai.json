@@ -12,28 +12,7 @@
       "models": {
         "coder": {
           "modelID": "coder",
-          "name": "Qwen3-Coder-Next (hub)",
-          "family": "qwen",
-          "capabilities": {
-            "tools": true,
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ],
-            "reasoning": {
-              "supported": false
-            }
-          },
-          "limit": {
-            "context": 65536,
-            "output": 16384
-          }
-        },
-        "planner": {
-          "modelID": "planner",
-          "name": "Qwen3.6-35B-A3B (hub)",
+          "name": "Qwen3.8-27B (hub)",
           "family": "qwen",
           "capabilities": {
             "tools": true,
@@ -87,15 +66,9 @@
   ],
   "agents": {
     "elai-coder": {
-      "description": "ELAI primary coder on the desktop hub (Qwen3-Coder-Next); follows the ELAI rules file",
+      "description": "ELAI coder on the desktop hub (Qwen3.8-27B); follows the ELAI rules file",
       "mode": "primary",
       "model": "elai/coder"
-    },
-    "elai-reviewer": {
-      "description": "ELAI reviewer and test-writer (Qwen3.6-35B-A3B): diffs a branch against the default branch, runs the tests, reports must-fix / should-fix / notes",
-      "mode": "subagent",
-      "model": "elai/planner",
-      "system": "You are the ELAI reviewer. Given a branch, diff it against the default branch, run the tests and review for correctness, missing tests and the ELAI rules (code only, tests on every push, one agent per branch). You may add or fix tests and small bugs on the same branch; do not rewrite features. Report a short list: must-fix, should-fix, notes. Say APPROVED only when the tests pass and nothing is in must-fix."
     }
   }
 }
