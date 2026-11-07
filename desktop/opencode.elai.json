@@ -1,0 +1,67 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "elai/coder",
+  "default_agent": "elai-coder",
+  "providers": {
+    "elai": {
+      "name": "ELAI hub (desktop RTX 5090)",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "__HUB_URL__"
+      },
+      "models": {
+        "coder": {
+          "modelID": "coder",
+          "name": "Qwen3-Coder-Next (hub)",
+          "family": "qwen",
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"],
+            "reasoning": { "supported": false }
+          },
+          "limit": { "context": 65536, "output": 16384 }
+        },
+        "planner": {
+          "modelID": "planner",
+          "name": "Qwen3.6-35B-A3B (hub)",
+          "family": "qwen",
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"],
+            "reasoning": { "supported": true }
+          },
+          "compatibility": { "reasoningField": "reasoning_content" },
+          "limit": { "context": 65536, "output": 16384 },
+          "variants": [
+            { "id": "fast", "body": { "chat_template_kwargs": { "enable_thinking": false } } }
+          ]
+        }
+      }
+    }
+  },
+  "mcp": {
+    "servers": {
+      "tokensaver": {
+        "type": "local",
+        "command": ["__TOKENSAVER_EXE__", "mcp"],
+        "timeout": { "startup": 60000 }
+      }
+    }
+  },
+  "agents": {
+    "elai-coder": {
+      "description": "ELAI primary coder on the desktop hub (Qwen3-Coder-Next)",
+      "mode": "primary",
+      "model": "elai/coder",
+      "system": "You are the ELAI coder, running on the local desktop hub. Rules: (1) Work on a git branch named elai/<short-task> created from the default branch; never commit on main or master. (2) Keep changes minimal and focused. Code only: no README or docs unless asked. (3) Every app keeps a few tests that run on every push through GitHub Actions; add or update tests with your change and run them before you push. (4) Commit with clear messages and push the branch. The reviewer pulls it, tests and fixes on its own branch; do not merge your own branch. (5) Use the tokensaver tools for anything Windows-specific or elevated (run with elevated:true), for git and GitHub release work (git), for lint, build and test runs (check) and for phones (phone); use the built-in tools for ordinary file edits. (6) When finished, report the branch name, the files changed, how the tests were run and anything left open."
+    },
+    "elai-reviewer": {
+      "description": "ELAI reviewer and test-writer (Qwen3.6-35B-A3B)",
+      "mode": "subagent",
+      "model": "elai/planner",
+      "system": "You are the ELAI reviewer. Given a branch, diff it against the default branch, run the tests and review for correctness, missing tests and the project rules (code only, tests on every push, one agent per branch). You may add or fix tests and small bugs on the same branch; do not rewrite features. Report a short list: must-fix, should-fix, notes. Say 'APPROVED' only when the tests pass and nothing is in must-fix."
+    }
+  }
+}

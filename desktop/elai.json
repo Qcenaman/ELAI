@@ -1,0 +1,64 @@
+{
+  "root": "auto",
+  "modelsDir": "auto",
+  "host": "0.0.0.0",
+  "port": 8080,
+  "apiKey": "",
+  "llama": {
+    "tag": "b12189",
+    "backends": ["cuda-13.5", "cuda-12.4", "vulkan"]
+  },
+  "router": {
+    "modelsMax": 2,
+    "cacheRamMiB": 8192
+  },
+  "models": {
+    "coder": {
+      "role": "primary coder - Qwen3-Coder-Next 80B-A3B, attention on GPU, experts in system RAM",
+      "repo": "unsloth/Qwen3-Coder-Next-GGUF",
+      "file": "Qwen3-Coder-Next-UD-Q4_K_S.gguf",
+      "sizeBytes": 46079830016,
+      "ctx": 131072,
+      "slots": 2,
+      "cpuMoe": true,
+      "threads": 8,
+      "loadOnStartup": true,
+      "reasoning": false,
+      "sampling": {
+        "temp": 1.0,
+        "top-p": 0.95,
+        "top-k": 40,
+        "min-p": 0.01,
+        "repeat-penalty": 1.05
+      }
+    },
+    "planner": {
+      "role": "planner / reviewer / test-writer - Qwen3.6-35B-A3B, fully on GPU",
+      "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+      "file": "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
+      "sizeBytes": 20893015008,
+      "mmproj": "mmproj-F16.gguf",
+      "mmprojSizeBytes": 899283680,
+      "vision": false,
+      "ctx": 196608,
+      "slots": 3,
+      "cpuMoeLayers": 0,
+      "loadOnStartup": true,
+      "reasoning": true,
+      "sampling": {
+        "temp": 0.6,
+        "top-p": 0.95,
+        "top-k": 20,
+        "min-p": 0.0,
+        "presence-penalty": 0.0
+      }
+    }
+  },
+  "opencode": {
+    "defaultModel": "coder",
+    "zipUrl": "https://opencode.ai/update/api/latest/cli/opencode/opencode-windows-x64.zip"
+  },
+  "tokensaver": {
+    "exe": "auto"
+  }
+}

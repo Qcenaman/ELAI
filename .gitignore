@@ -1,0 +1,4 @@
+*.bak
+*.part
+logs/
+*.log
