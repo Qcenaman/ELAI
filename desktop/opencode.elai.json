@@ -70,16 +70,6 @@
   },
   "mcp": {
     "servers": {
-      "tokensaver": {
-        "type": "local",
-        "command": [
-          "__TOKENSAVER_EXE__",
-          "mcp"
-        ],
-        "timeout": {
-          "startup": 60000
-        }
-      },
       "contextsaver": {
         "type": "local",
         "command": [

@@ -19,13 +19,13 @@
   "models": {
     "coder": {
       "enabled": true,
-      "role": "primary coder - Qwen3-Coder-Next 80B-A3B; solo mode: 28 of 48 expert layers on GPU (cpuMoeLayers 20). Set cpuMoe true when the planner is enabled too",
+      "role": "primary coder - Qwen3-Coder-Next 80B-A3B; attention on GPU, experts in system RAM (cpuMoe) so the planner fits next to it. Solo tip: planner enabled=false + cpuMoe=false + cpuMoeLayers=20 for a faster coder",
       "repo": "unsloth/Qwen3-Coder-Next-GGUF",
       "file": "Qwen3-Coder-Next-UD-Q4_K_S.gguf",
       "sizeBytes": 46079830016,
       "ctx": 131072,
       "slots": 2,
-      "cpuMoe": false,
+      "cpuMoe": true,
       "threads": 8,
       "loadOnStartup": true,
       "reasoning": false,
@@ -36,10 +36,10 @@
         "min-p": 0.01,
         "repeat-penalty": 1.05
       },
-      "cpuMoeLayers": 20
+      "cpuMoeLayers": 0
     },
     "planner": {
-      "enabled": false,
+      "enabled": true,
       "role": "planner / reviewer / test-writer - Qwen3.6-35B-A3B, fully on GPU",
       "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
       "file": "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",

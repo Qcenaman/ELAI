@@ -13,8 +13,8 @@ You are one of several AI coding agents sharing the ELAI local hub. These rules 
 - Every app version is tagged and released on GitHub with short release notes (what is new, what was fixed). Do this only when asked to release.
 
 ## Tools
-- Use the `tokensaver` MCP tools for anything Windows-specific or elevated (`run` with `elevated: true`), for git and GitHub release work (`git`), for lint, build and test runs (`check`) and for phones (`phone`).
-- Use the built-in tools for ordinary file edits and searches.
+- Use the `contextsaver` MCP tools for anything Windows-specific or elevated (`run`), for git and GitHub work (`git`), for lint, build and test runs (`check`), for file searches that return short results (`find`, `scan`, `read`) and for phones (`phone`). They return short outputs on purpose: prefer them over dumping whole files into the context.
+- Use the built-in tools for ordinary file edits.
 
 ## Reporting
 - When finished, report: the branch name, the files changed, how the tests were run and their result, and anything left open.

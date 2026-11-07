@@ -2,12 +2,14 @@
 # Writes/merges the global config: %USERPROFILE%\.config\opencode\opencode.json (existing keys are kept, a .bak is made).
 #   .\install-opencode.ps1
 #   .\install-opencode.ps1 -ConfigOnly     # only (re)write the config
+#   .\install-opencode.ps1 -WithTokenSaver # also give OpenCode the TokenSaver tools (default: ContextSaver only)
 #   .\install-opencode.ps1 -HubUrl http://192.168.1.50:8080/v1   # for a second machine
 [CmdletBinding()]
 param(
     [string]$Root,
     [string]$HubUrl,
     [string]$TokenSaverExe,
+    [switch]$WithTokenSaver,
     [string]$ContextSaverExe,
     [string]$ConfigPath,
     [switch]$ConfigOnly,
@@ -83,7 +85,9 @@ if (-not $ConfigOnly) {
 
 # ---- config ----
 $hub = if ($HubUrl) { $HubUrl } else { "$($r.BaseUrl)/v1" }
-$ts = if ($TokenSaverExe) { $TokenSaverExe } else { Resolve-SaverExe -Configured ([string]$settings.tokensaver.exe) -AppName "TokenSaver" }
+# Local AI uses ContextSaver (made for local models); TokenSaver is Claude's and is only added with -WithTokenSaver.
+$ts = $null
+if ($WithTokenSaver -or $TokenSaverExe) { $ts = if ($TokenSaverExe) { $TokenSaverExe } else { Resolve-SaverExe -Configured ([string]$settings.tokensaver.exe) -AppName "TokenSaver" } }
 $csConfigured = if (Test-Prop $settings 'contextsaver') { [string]$settings.contextsaver.exe } else { 'auto' }
 $cs = if ($ContextSaverExe) { $ContextSaverExe } else { Resolve-SaverExe -Configured $csConfigured -AppName "ContextSaver" }
 $cfgPath = if ($ConfigPath) { $ConfigPath } else { Join-Path (Join-Path $env:USERPROFILE ".config\opencode") "opencode.json" }
@@ -99,7 +103,6 @@ Copy-Item -Path $rulesSrc -Destination $rulesDst -Force
 $templatePath = Join-Path $PSScriptRoot "opencode.elai.json"
 $templateText = Get-Content -Path $templatePath -Raw -Encoding UTF8
 $templateText = $templateText.Replace("__HUB_URL__", $hub)
-$templateText = $templateText.Replace("__TOKENSAVER_EXE__", $(if ($ts) { $ts.Replace('\', '\\') } else { "tokensaver.exe" }))
 $templateText = $templateText.Replace("__CONTEXTSAVER_EXE__", $(if ($cs) { $cs.Replace('\', '\\') } else { "contextsaver.exe" }))
 $templateText = $templateText.Replace("__RULES_FILE__", $rulesDst.Replace('\', '\\'))
 $fragment = $templateText | ConvertFrom-Json
@@ -137,19 +140,18 @@ Set-Prop -Obj $existing -Name 'default_agent' -Value $fragment.default_agent
 if ($null -eq (Get-Prop $existing 'providers')) { Set-Prop -Obj $existing -Name 'providers' -Value ([pscustomobject]@{}) }
 Set-Prop -Obj $existing.providers -Name 'elai' -Value $fragment.providers.elai
 
+if ($null -eq (Get-Prop $existing 'mcp')) { Set-Prop -Obj $existing -Name 'mcp' -Value ([pscustomobject]@{}) }
+if ($null -eq (Get-Prop $existing.mcp 'servers')) { Set-Prop -Obj $existing.mcp -Name 'servers' -Value ([pscustomobject]@{}) }
 if ($ts) {
-    if ($null -eq (Get-Prop $existing 'mcp')) { Set-Prop -Obj $existing -Name 'mcp' -Value ([pscustomobject]@{}) }
-    if ($null -eq (Get-Prop $existing.mcp 'servers')) { Set-Prop -Obj $existing.mcp -Name 'servers' -Value ([pscustomobject]@{}) }
-    Set-Prop -Obj $existing.mcp.servers -Name 'tokensaver' -Value $fragment.mcp.servers.tokensaver
-} else {
-    Write-Warn "TokenSaver not found (looked in D:\Claude Apps\TokenSaver\app and PATH); re-run with -TokenSaverExe <path>."
+    Set-Prop -Obj $existing.mcp.servers -Name 'tokensaver' -Value ([pscustomobject]@{ type = 'local'; command = @($ts, 'mcp'); timeout = [pscustomobject]@{ startup = 60000 } })
+} elseif ($null -ne (Get-Prop $existing.mcp.servers 'tokensaver')) {
+    $existing.mcp.servers.PSObject.Properties.Remove('tokensaver')
+    Write-Note "removed tokensaver from OpenCode's MCP servers (local AI uses ContextSaver)"
 }
 if ($cs) {
-    if ($null -eq (Get-Prop $existing 'mcp')) { Set-Prop -Obj $existing -Name 'mcp' -Value ([pscustomobject]@{}) }
-    if ($null -eq (Get-Prop $existing.mcp 'servers')) { Set-Prop -Obj $existing.mcp -Name 'servers' -Value ([pscustomobject]@{}) }
     Set-Prop -Obj $existing.mcp.servers -Name 'contextsaver' -Value $fragment.mcp.servers.contextsaver
 } else {
-    Write-Note "ContextSaver not found; skipped (re-run with -ContextSaverExe <path> to add it)"
+    Write-Warn "ContextSaver not found (looked in D:\Claude Apps\ContextSaver\app and PATH); OpenCode gets no MCP tools. Re-run with -ContextSaverExe <path>."
 }
 
 if ($null -eq (Get-Prop $existing 'agents')) { Set-Prop -Obj $existing -Name 'agents' -Value ([pscustomobject]@{}) }
@@ -166,7 +168,7 @@ $json = $existing | ConvertTo-Json -Depth 30
 [System.IO.File]::WriteAllText($cfgPath, $json + "`r`n", (New-Object System.Text.UTF8Encoding($false)))
 Write-Step "OpenCode config written: $cfgPath"
 Write-Note "hub: $hub"
-Write-Note ("tokensaver: " + $(if ($ts) { $ts } else { "(not configured)" }))
 Write-Note ("contextsaver: " + $(if ($cs) { $cs } else { "(not configured)" }))
+if ($ts) { Write-Note "tokensaver: $ts" }
 Write-Note "rules: $rulesDst"
 Write-Note "default model elai/coder, agents elai-coder (primary) and elai-reviewer (subagent); planner variant: elai/planner#fast"

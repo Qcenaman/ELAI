@@ -176,17 +176,17 @@ Describe "make-preset.ps1" {
 Describe "opencode.elai.json" {
     BeforeAll {
         $raw = Get-Content (Join-Path $script:Desktop "opencode.elai.json") -Raw
-        $raw = $raw.Replace('__HUB_URL__', 'http://127.0.0.1:8080/v1').Replace('__TOKENSAVER_EXE__', 'C:\\x\\tokensaver.exe').Replace('__RULES_FILE__', 'C:\\x\\ELAI-RULES.md').Replace('__CONTEXTSAVER_EXE__', 'C:\\x\\contextsaver.exe')
+        $raw = $raw.Replace('__HUB_URL__', 'http://127.0.0.1:8080/v1').Replace('__RULES_FILE__', 'C:\\x\\ELAI-RULES.md').Replace('__CONTEXTSAVER_EXE__', 'C:\\x\\contextsaver.exe')
         $script:Oc = $raw | ConvertFrom-Json
     }
     It "is valid JSON with the V2 keys" {
         $script:Oc.providers.elai | Should -Not -BeNullOrEmpty
         $script:Oc.providers.elai.package | Should -Be '@opencode/ai/providers/openai-compatible'
         $script:Oc.model | Should -Be 'elai/coder'
-        $script:Oc.mcp.servers.tokensaver.type | Should -Be 'local'
-        @($script:Oc.mcp.servers.tokensaver.command)[0] | Should -Be 'C:\x\tokensaver.exe'
+        $script:Oc.mcp.servers.contextsaver.type | Should -Be 'local'
+        $script:Oc.mcp.servers.PSObject.Properties.Name | Should -Not -Contain 'tokensaver'
     }
-    It "lists the contextsaver MCP next to tokensaver" {
+    It "lists the contextsaver MCP as the local AI's tools" {
         @($script:Oc.mcp.servers.contextsaver.command)[0] | Should -Be 'C:\x\contextsaver.exe'
     }
     It "defines both hub models with tool support" {
@@ -218,20 +218,30 @@ Describe "install-opencode.ps1 -ConfigOnly" {
         Set-Content $ts "x"
         $cs = Join-Path $dir "contextsaver.exe"
         Set-Content $cs "x"
-        '{ "theme": "dark", "providers": { "other": { "name": "keep me" } } }' | Set-Content $cfg
-        & (Join-Path $script:Desktop "install-opencode.ps1") -ConfigOnly -Root (New-TempDir) -ConfigPath $cfg -TokenSaverExe $ts -ContextSaverExe $cs -HubUrl "http://10.0.0.5:8080/v1" | Out-Null
+        '{ "theme": "dark", "providers": { "other": { "name": "keep me" } }, "mcp": { "servers": { "tokensaver": { "type": "local", "command": ["old.exe", "mcp"] } } } }' | Set-Content $cfg
+        & (Join-Path $script:Desktop "install-opencode.ps1") -ConfigOnly -Root (New-TempDir) -ConfigPath $cfg -ContextSaverExe $cs -HubUrl "http://10.0.0.5:8080/v1" | Out-Null
         $out = Get-Content $cfg -Raw | ConvertFrom-Json
         $out.theme | Should -Be 'dark'
         $out.providers.other.name | Should -Be 'keep me'
         $out.providers.elai.settings.baseURL | Should -Be 'http://10.0.0.5:8080/v1'
-        @($out.mcp.servers.tokensaver.command)[0] | Should -Be $ts
         @($out.mcp.servers.contextsaver.command)[0] | Should -Be $cs
-        $out.providers.elai.models.planner.disabled | Should -BeTrue
+        $out.mcp.servers.PSObject.Properties.Name | Should -Not -Contain 'tokensaver'
+        $out.providers.elai.models.planner.PSObject.Properties.Name | Should -Not -Contain 'disabled'
         $out.model | Should -Be 'elai/coder'
         [int]$out.providers.elai.models.coder.limit.context | Should -Be ([int]$script:Settings.models.coder.ctx / [int]$script:Settings.models.coder.slots)
         @($out.instructions).Count | Should -Be 1
         @($out.instructions)[0] | Should -Be (Join-Path $dir "ELAI-RULES.md")
         Test-Path (Join-Path $dir "ELAI-RULES.md") | Should -BeTrue
         Test-Path ($cfg + ".bak") | Should -BeTrue
+    }
+    It "adds TokenSaver only when asked" {
+        $dir = New-TempDir
+        $cfg = Join-Path $dir "opencode.json"
+        $ts = Join-Path $dir "tokensaver.exe"; Set-Content $ts "x"
+        $cs = Join-Path $dir "contextsaver.exe"; Set-Content $cs "x"
+        & (Join-Path $script:Desktop "install-opencode.ps1") -ConfigOnly -Root (New-TempDir) -ConfigPath $cfg -ContextSaverExe $cs -TokenSaverExe $ts | Out-Null
+        $out = Get-Content $cfg -Raw | ConvertFrom-Json
+        @($out.mcp.servers.tokensaver.command)[0] | Should -Be $ts
+        @($out.mcp.servers.contextsaver.command)[0] | Should -Be $cs
     }
 }
