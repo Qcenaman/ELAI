@@ -1,0 +1,36 @@
+name: release
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Tag and publish when VERSION is new
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v="v$(tr -d ' \n\r' < VERSION)"
+          if git ls-remote --tags origin "refs/tags/$v" | grep -q "refs/tags/$v"; then
+            echo "tag $v already exists - nothing to do"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$v" -m "ELAI $v"
+          git push origin "$v"
+          gh release create "$v" --title "$v" --notes-file RELEASE_NOTES.md
