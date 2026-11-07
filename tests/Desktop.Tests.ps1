@@ -91,6 +91,12 @@ Describe "elai-common helpers" {
         Set-Content (Join-Path $d "llama-server.exe") "x"
         (Get-LlamaServer -LlamaDir $d).Exe | Should -Be (Join-Path $d "llama-server.exe")
     }
+    It "lists the split release zips for a backend" {
+        $cuda = Get-LlamaAssets -Tag "b12189" -Backend "cuda-13.5"
+        $cuda | Should -Be @("llama-b12189-bin-win-cpu-x64.zip", "llama-b12189-bin-win-cuda-13.5-x64.zip", "cudart-llama-bin-win-cuda-13.5-x64.zip")
+        Get-LlamaAssets -Tag "b12189" -Backend "vulkan" | Should -Be @("llama-b12189-bin-win-cpu-x64.zip", "llama-b12189-bin-win-vulkan-x64.zip")
+        Get-LlamaAssets -Tag "b12189" -Backend "cpu" | Should -Be @("llama-b12189-bin-win-cpu-x64.zip")
+    }
     It "formats bytes" {
         Format-Bytes 46079830016 | Should -Match 'GB'
     }

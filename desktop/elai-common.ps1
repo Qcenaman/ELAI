@@ -129,6 +129,16 @@ function Get-LlamaServer {
     return $null
 }
 
+function Get-LlamaAssets {
+    # Release zips needed for one Windows build. Nightlies are split: cpu zip = programs (backends load as DLLs),
+    # backend zip = ggml-<backend>.dll, cudart zip = CUDA runtime DLLs. All go into the same folder.
+    param([string]$Tag, [string]$Backend)
+    $assets = @("llama-$Tag-bin-win-cpu-x64.zip")
+    if ($Backend -ne "cpu") { $assets += "llama-$Tag-bin-win-$Backend-x64.zip" }
+    if ($Backend -like "cuda*") { $assets += "cudart-llama-bin-win-$Backend-x64.zip" }
+    return $assets
+}
+
 function Get-FreeSpaceBytes {
     param([string]$PathOnDrive)
     $qualifier = Split-Path -Path $PathOnDrive -Qualifier -ErrorAction SilentlyContinue

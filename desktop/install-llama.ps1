@@ -1,5 +1,5 @@
 # Installs a pinned llama.cpp nightly build (Windows, CUDA first) into <root>\llama.
-# The build is self-contained: the matching cudart zip is unpacked next to it, so no CUDA Toolkit is needed.
+# Self-contained: cpu zip (programs) + backend zip (ggml-cuda.dll) + cudart zip (CUDA runtime), no CUDA Toolkit needed.
 #   .\install-llama.ps1                 # tag + backend order from elai.json
 #   .\install-llama.ps1 -Tag latest     # newest nightly
 #   .\install-llama.ps1 -Backend vulkan # force a backend
@@ -66,8 +66,7 @@ New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 $ok = $false
 foreach ($b in $backends) {
     Write-Step "Trying llama.cpp $tag, backend $b"
-    $assets = @("llama-$tag-bin-win-$b-x64.zip")
-    if ($b -like "cuda*") { $assets += "cudart-llama-bin-win-$b-x64.zip" }
+    $assets = Get-LlamaAssets -Tag $tag -Backend $b
     $stage = Join-Path $tmp $b
     New-Item -ItemType Directory -Path $stage -Force | Out-Null
     $downloaded = $true
