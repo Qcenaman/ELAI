@@ -1,4 +1,5 @@
-# Downloads the GGUF models listed in elai.json into the models dir (resumable, skips files already complete).
+# Downloads the enabled GGUF models listed in elai.json into the models dir, LM Studio layout
+# (<modelsDir>\<publisher>\<repo>\<file>), resumable, skipping files already complete.
 #   .\get-models.ps1                 # all models
 #   .\get-models.ps1 -Only coder     # one model
 #   .\get-models.ps1 -ModelsDir D:\models
@@ -21,7 +22,7 @@ Write-Step "Models dir: $dir"
 
 $names = Get-ModelNames -Settings $settings
 if ($Only) { $names = @($names | Where-Object { $Only -contains $_ }) }
-if ($names.Count -eq 0) { throw "No models selected. Known: $((Get-ModelNames -Settings $settings) -join ', ')" }
+if ($names.Count -eq 0) { throw "No enabled models selected. Known: $((Get-ModelNames -Settings $settings -All) -join ', ')" }
 
 # Build the download list: (repo, file, expected size)
 $items = @()
@@ -38,7 +39,7 @@ foreach ($n in $names) {
 # Disk space check (only for files not yet complete).
 $need = 0
 foreach ($it in $items) {
-    $existing = Find-ModelFile -FileName $it.file -ModelsDir $dir
+    $existing = Find-ModelFile -FileName $it.file -ModelsDir $dir -Repo $it.repo
     if ($existing -and -not $Force) { continue }
     $need += $it.size
 }
@@ -48,10 +49,10 @@ if ($need -gt 0 -and $free -lt ($need + 2GB)) {
 }
 
 foreach ($it in $items) {
-    $target = Join-Path $dir $it.file
+    $target = Join-Path $dir (Get-ModelRelativePath -Repo $it.repo -FileName $it.file)
     $url = "https://huggingface.co/$($it.repo)/resolve/main/$($it.file)?download=true"
 
-    $existing = Find-ModelFile -FileName $it.file -ModelsDir $dir
+    $existing = Find-ModelFile -FileName $it.file -ModelsDir $dir -Repo $it.repo
     if ($existing -and -not $Force) {
         $len = (Get-Item $existing).Length
         $remote = Get-RemoteSize -Url $url
@@ -66,6 +67,8 @@ foreach ($it in $items) {
 
     Write-Step "$($it.name): downloading $($it.file) ($(Format-Bytes $it.size))"
     Write-Note $url
+    $targetDir = Split-Path -Parent $target
+    if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir -Force | Out-Null }
     $part = "$target.part"
     if ($Force -and (Test-Path $part)) { Remove-Item $part -Force }
     Invoke-Download -Url $url -OutFile $part

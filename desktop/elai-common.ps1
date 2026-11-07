@@ -56,7 +56,7 @@ function Resolve-ModelsDir {
     param(
         [string]$Configured,
         [string]$Root,
-        [string[]]$Candidates = @("D:\llama.cpp\models", "D:\models", "D:\ELAI\models")
+        [string[]]$Candidates = @("D:\LLM MODELS", "D:\ELAI\models")
     )
     if ($Configured -and $Configured -ne "auto") { return $Configured }
     foreach ($c in $Candidates) {
@@ -76,7 +76,9 @@ function Get-ElaiSettings {
     $s = $raw | ConvertFrom-Json
 
     $root = if ($RootOverride) { $RootOverride } else { Resolve-ElaiRoot -Configured $s.root }
-    $modelsDir = if ($ModelsDirOverride) { $ModelsDirOverride } else { Resolve-ModelsDir -Configured $s.modelsDir -Root $root }
+    $candidates = @("D:\LLM MODELS", "D:\ELAI\models")
+    if (Test-Prop $s 'modelsDirCandidates') { $candidates = @($s.modelsDirCandidates) }
+    $modelsDir = if ($ModelsDirOverride) { $ModelsDirOverride } else { Resolve-ModelsDir -Configured $s.modelsDir -Root $root -Candidates $candidates }
 
     $resolved = [ordered]@{
         Root        = $root
@@ -96,22 +98,38 @@ function Get-ElaiSettings {
 }
 
 function Get-ModelNames {
-    param($Settings)
-    return @($Settings.models.PSObject.Properties | ForEach-Object { $_.Name })
+    # Enabled models only (a model with "enabled": false is skipped by every script).
+    param($Settings, [switch]$All)
+    $names = @()
+    foreach ($p in $Settings.models.PSObject.Properties) {
+        if ($All -or -not (Test-Prop $p.Value 'enabled') -or [bool]$p.Value.enabled) { $names += $p.Name }
+    }
+    return $names
+}
+
+function Get-ModelRelativePath {
+    # Files live in the LM Studio / Hugging Face layout: <modelsDir>\<publisher>\<repo>\<file>.
+    param([string]$Repo, [string]$FileName)
+    if ($Repo) { return (Join-Path (Join-Path ($Repo.Split('/')[0]) ($Repo.Split('/')[-1])) $FileName) }
+    return $FileName
 }
 
 function Find-ModelFile {
-    # Looks for a model file in the models dir, then in the usual alternatives.
+    # Looks for a model file as <dir>\<publisher>\<repo>\<file> (LM Studio layout), then flat <dir>\<file>,
+    # in the models dir first and then in the usual alternatives.
     param(
         [string]$FileName,
         [string]$ModelsDir,
-        [string[]]$AlsoLook = @("D:\llama.cpp\models", "D:\models", "D:\ELAI\models", "C:\ELAI\models")
+        [string]$Repo = "",
+        [string[]]$AlsoLook = @("D:\LLM MODELS", "D:\ELAI\models", "C:\ELAI\models")
     )
     $dirs = @($ModelsDir) + $AlsoLook
     foreach ($d in $dirs) {
         if (-not $d) { continue }
-        $p = Join-Path $d $FileName
-        if (Test-Path $p -PathType Leaf) { return (Resolve-Path $p).Path }
+        foreach ($rel in @((Get-ModelRelativePath -Repo $Repo -FileName $FileName), $FileName)) {
+            $p = Join-Path $d $rel
+            if (Test-Path $p -PathType Leaf) { return (Resolve-Path $p).Path }
+        }
     }
     return $null
 }

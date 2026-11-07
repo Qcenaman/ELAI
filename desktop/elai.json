@@ -6,7 +6,11 @@
   "apiKey": "",
   "llama": {
     "tag": "b12189",
-    "backends": ["cuda-13.5", "cuda-12.4", "vulkan"]
+    "backends": [
+      "cuda-13.5",
+      "cuda-12.4",
+      "vulkan"
+    ]
   },
   "router": {
     "modelsMax": 2,
@@ -14,13 +18,14 @@
   },
   "models": {
     "coder": {
-      "role": "primary coder - Qwen3-Coder-Next 80B-A3B, attention on GPU, experts in system RAM",
+      "enabled": true,
+      "role": "primary coder - Qwen3-Coder-Next 80B-A3B; solo mode: 28 of 48 expert layers on GPU (cpuMoeLayers 20). Set cpuMoe true when the planner is enabled too",
       "repo": "unsloth/Qwen3-Coder-Next-GGUF",
       "file": "Qwen3-Coder-Next-UD-Q4_K_S.gguf",
       "sizeBytes": 46079830016,
       "ctx": 131072,
       "slots": 2,
-      "cpuMoe": true,
+      "cpuMoe": false,
       "threads": 8,
       "loadOnStartup": true,
       "reasoning": false,
@@ -30,9 +35,11 @@
         "top-k": 40,
         "min-p": 0.01,
         "repeat-penalty": 1.05
-      }
+      },
+      "cpuMoeLayers": 20
     },
     "planner": {
+      "enabled": false,
       "role": "planner / reviewer / test-writer - Qwen3.6-35B-A3B, fully on GPU",
       "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
       "file": "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
@@ -59,6 +66,13 @@
     "zipUrl": "https://opencode.ai/update/api/latest/cli/opencode/opencode-windows-x64.zip"
   },
   "tokensaver": {
+    "exe": "auto"
+  },
+  "modelsDirCandidates": [
+    "D:\\LLM MODELS",
+    "D:\\ELAI\\models"
+  ],
+  "contextsaver": {
     "exe": "auto"
   }
 }

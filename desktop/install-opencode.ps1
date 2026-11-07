@@ -8,6 +8,7 @@ param(
     [string]$Root,
     [string]$HubUrl,
     [string]$TokenSaverExe,
+    [string]$ContextSaverExe,
     [string]$ConfigPath,
     [switch]$ConfigOnly,
     [switch]$Force
@@ -31,12 +32,14 @@ function Get-Prop {
     return $null
 }
 
-function Resolve-TokenSaverExe {
-    param([string]$Configured)
+function Resolve-SaverExe {
+    # TokenSaver / ContextSaver: configured path, the usual install folder, or PATH.
+    param([string]$Configured, [string]$AppName)
     if ($Configured -and $Configured -ne 'auto') { if (Test-Path $Configured) { return $Configured } else { return $null } }
-    $candidates = @("D:\Claude Apps\TokenSaver\app\tokensaver.exe", "C:\Claude Apps\TokenSaver\app\tokensaver.exe")
+    $exe = $AppName.ToLower() + ".exe"
+    $candidates = @("D:\Claude Apps\$AppName\app\$exe", "C:\Claude Apps\$AppName\app\$exe")
     foreach ($c in $candidates) { if (Test-Path $c) { return $c } }
-    $cmd = Get-Command "tokensaver.exe" -ErrorAction SilentlyContinue
+    $cmd = Get-Command $exe -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
     return $null
 }
@@ -80,7 +83,9 @@ if (-not $ConfigOnly) {
 
 # ---- config ----
 $hub = if ($HubUrl) { $HubUrl } else { "$($r.BaseUrl)/v1" }
-$ts = if ($TokenSaverExe) { $TokenSaverExe } else { Resolve-TokenSaverExe -Configured ([string]$settings.tokensaver.exe) }
+$ts = if ($TokenSaverExe) { $TokenSaverExe } else { Resolve-SaverExe -Configured ([string]$settings.tokensaver.exe) -AppName "TokenSaver" }
+$csConfigured = if (Test-Prop $settings 'contextsaver') { [string]$settings.contextsaver.exe } else { 'auto' }
+$cs = if ($ContextSaverExe) { $ContextSaverExe } else { Resolve-SaverExe -Configured $csConfigured -AppName "ContextSaver" }
 $cfgPath = if ($ConfigPath) { $ConfigPath } else { Join-Path (Join-Path $env:USERPROFILE ".config\opencode") "opencode.json" }
 
 $cfgDir = Split-Path -Parent $cfgPath
@@ -95,6 +100,7 @@ $templatePath = Join-Path $PSScriptRoot "opencode.elai.json"
 $templateText = Get-Content -Path $templatePath -Raw -Encoding UTF8
 $templateText = $templateText.Replace("__HUB_URL__", $hub)
 $templateText = $templateText.Replace("__TOKENSAVER_EXE__", $(if ($ts) { $ts.Replace('\', '\\') } else { "tokensaver.exe" }))
+$templateText = $templateText.Replace("__CONTEXTSAVER_EXE__", $(if ($cs) { $cs.Replace('\', '\\') } else { "contextsaver.exe" }))
 $templateText = $templateText.Replace("__RULES_FILE__", $rulesDst.Replace('\', '\\'))
 $fragment = $templateText | ConvertFrom-Json
 
@@ -102,10 +108,11 @@ if ($r.ApiKey) {
     Set-Prop -Obj $fragment.providers.elai.settings -Name "apiKey" -Value "{env:ELAI_API_KEY}"
 }
 
-# Per-slot context for the OpenCode limits (ctx is shared across the slots).
-foreach ($name in (Get-ModelNames -Settings $settings)) {
+# Per-slot context for the OpenCode limits (ctx is shared across the slots); disabled models are hidden.
+foreach ($name in (Get-ModelNames -Settings $settings -All)) {
     $m = $settings.models.$name
     $entry = Get-Prop $fragment.providers.elai.models $name
+    if ($entry -and (Test-Prop $m 'enabled') -and -not [bool]$m.enabled) { Set-Prop -Obj $entry -Name "disabled" -Value $true }
     if ($entry -and (Get-Prop $m 'ctx') -and (Get-Prop $m 'slots')) {
         $per = [int]([int]$m.ctx / [int]$m.slots)
         Set-Prop -Obj $entry.limit -Name "context" -Value $per
@@ -135,7 +142,14 @@ if ($ts) {
     if ($null -eq (Get-Prop $existing.mcp 'servers')) { Set-Prop -Obj $existing.mcp -Name 'servers' -Value ([pscustomobject]@{}) }
     Set-Prop -Obj $existing.mcp.servers -Name 'tokensaver' -Value $fragment.mcp.servers.tokensaver
 } else {
-    Write-Warn "TokenSaver not found (looked in D:\Claude Apps\TokenSaver\app and PATH); OpenCode gets no MCP tools. Re-run with -TokenSaverExe <path>."
+    Write-Warn "TokenSaver not found (looked in D:\Claude Apps\TokenSaver\app and PATH); re-run with -TokenSaverExe <path>."
+}
+if ($cs) {
+    if ($null -eq (Get-Prop $existing 'mcp')) { Set-Prop -Obj $existing -Name 'mcp' -Value ([pscustomobject]@{}) }
+    if ($null -eq (Get-Prop $existing.mcp 'servers')) { Set-Prop -Obj $existing.mcp -Name 'servers' -Value ([pscustomobject]@{}) }
+    Set-Prop -Obj $existing.mcp.servers -Name 'contextsaver' -Value $fragment.mcp.servers.contextsaver
+} else {
+    Write-Note "ContextSaver not found; skipped (re-run with -ContextSaverExe <path> to add it)"
 }
 
 if ($null -eq (Get-Prop $existing 'agents')) { Set-Prop -Obj $existing -Name 'agents' -Value ([pscustomobject]@{}) }
@@ -153,5 +167,6 @@ $json = $existing | ConvertTo-Json -Depth 30
 Write-Step "OpenCode config written: $cfgPath"
 Write-Note "hub: $hub"
 Write-Note ("tokensaver: " + $(if ($ts) { $ts } else { "(not configured)" }))
+Write-Note ("contextsaver: " + $(if ($cs) { $cs } else { "(not configured)" }))
 Write-Note "rules: $rulesDst"
 Write-Note "default model elai/coder, agents elai-coder (primary) and elai-reviewer (subagent); planner variant: elai/planner#fast"

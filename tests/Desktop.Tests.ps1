@@ -16,10 +16,13 @@ BeforeAll {
         return $p
     }
     function New-DummyModels {
+        # LM Studio layout: <dir>\<publisher>\<repo>\<file>
         param([string]$Dir, $Settings)
         foreach ($p in $Settings.models.PSObject.Properties) {
-            Set-Content -Path (Join-Path $Dir $p.Value.file) -Value "dummy"
-            if (Test-Prop $p.Value 'mmproj') { Set-Content -Path (Join-Path $Dir $p.Value.mmproj) -Value "dummy" }
+            $sub = Join-Path $Dir (Split-Path -Parent (Get-ModelRelativePath -Repo $p.Value.repo -FileName $p.Value.file))
+            New-Item -ItemType Directory -Path $sub -Force | Out-Null
+            Set-Content -Path (Join-Path $sub $p.Value.file) -Value "dummy"
+            if (Test-Prop $p.Value 'mmproj') { Set-Content -Path (Join-Path $sub $p.Value.mmproj) -Value "dummy" }
         }
     }
 }
@@ -116,23 +119,36 @@ Describe "make-preset.ps1" {
         $script:Ini | Should -Match '(?m)^\[\*\]'
         $script:Ini | Should -Match '(?m)^cache-type-k = q8_0'
     }
-    It "has a section per model that loads on startup" {
-        foreach ($n in @('coder', 'planner')) {
-            $script:Ini | Should -Match ("(?m)^\[$n\]")
+    It "has a section per enabled model that loads on startup, and none for disabled ones" {
+        $enabled = @(Get-ModelNames -Settings $script:Settings)
+        $all = @(Get-ModelNames -Settings $script:Settings -All)
+        $enabled.Count | Should -BeGreaterThan 0
+        foreach ($n in $all) {
+            if ($enabled -contains $n) { $script:Ini | Should -Match ("(?m)^\[$n\]") } else { $script:Ini | Should -Not -Match ("(?m)^\[$n\]") }
         }
-        ([regex]::Matches($script:Ini, '(?m)^load-on-startup = true')).Count | Should -Be 2
+        ([regex]::Matches($script:Ini, '(?m)^load-on-startup = true')).Count | Should -Be $enabled.Count
     }
-    It "points model = at the real files" {
-        $script:Ini | Should -Match ('(?m)^model = .*' + [regex]::Escape($script:Settings.models.coder.file))
-        $script:Ini | Should -Match ('(?m)^model = .*' + [regex]::Escape($script:Settings.models.planner.file))
+    It "points model = at the real file in the LM Studio layout" {
+        $rel = Get-ModelRelativePath -Repo $script:Settings.models.coder.repo -FileName $script:Settings.models.coder.file
+        $script:Ini | Should -Match ('(?m)^model = .*' + [regex]::Escape($rel))
     }
-    It "keeps the coder's experts in system RAM and the planner on the GPU" {
-        $coder = ($script:Ini -split '(?m)^\[planner\]')[0]
-        $planner = ($script:Ini -split '(?m)^\[planner\]')[1]
-        $coder | Should -Match '(?m)^cpu-moe = true'
-        $coder | Should -Match '(?m)^n-gpu-layers = 99'
-        $planner | Should -Not -Match '(?m)^cpu-moe'
-        $planner | Should -Match '(?m)^reasoning-format = deepseek'
+    It "puts part of the coder's experts in system RAM (solo mode)" {
+        $coder = ($script:Ini -split '(?m)^\[coder\]')[1]
+        if ([bool]$script:Settings.models.coder.cpuMoe) {
+            $coder | Should -Match '(?m)^cpu-moe = true'
+        } else {
+            $coder | Should -Match ('(?m)^n-cpu-moe = ' + [int]$script:Settings.models.coder.cpuMoeLayers)
+        }
+    }
+    It "generates the planner section with reasoning when it is enabled" {
+        $tmpRoot = New-TempDir
+        $json = Get-Content (Join-Path $script:Desktop "elai.json") -Raw | ConvertFrom-Json
+        $json.models.planner.enabled = $true
+        $json.models.coder.enabled = $false
+        $alt = Join-Path $tmpRoot "elai.json"
+        $json | ConvertTo-Json -Depth 10 | Set-Content $alt
+        $s2 = Get-ElaiSettings -Path $alt -RootOverride $tmpRoot -ModelsDirOverride $script:Models
+        @(Get-ModelNames -Settings $s2) | Should -Be @('planner')
     }
     It "writes context and slots per model" {
         $script:Ini | Should -Match ('(?m)^ctx-size = ' + [int]$script:Settings.models.coder.ctx)
@@ -160,7 +176,7 @@ Describe "make-preset.ps1" {
 Describe "opencode.elai.json" {
     BeforeAll {
         $raw = Get-Content (Join-Path $script:Desktop "opencode.elai.json") -Raw
-        $raw = $raw.Replace('__HUB_URL__', 'http://127.0.0.1:8080/v1').Replace('__TOKENSAVER_EXE__', 'C:\\x\\tokensaver.exe').Replace('__RULES_FILE__', 'C:\\x\\ELAI-RULES.md')
+        $raw = $raw.Replace('__HUB_URL__', 'http://127.0.0.1:8080/v1').Replace('__TOKENSAVER_EXE__', 'C:\\x\\tokensaver.exe').Replace('__RULES_FILE__', 'C:\\x\\ELAI-RULES.md').Replace('__CONTEXTSAVER_EXE__', 'C:\\x\\contextsaver.exe')
         $script:Oc = $raw | ConvertFrom-Json
     }
     It "is valid JSON with the V2 keys" {
@@ -169,6 +185,9 @@ Describe "opencode.elai.json" {
         $script:Oc.model | Should -Be 'elai/coder'
         $script:Oc.mcp.servers.tokensaver.type | Should -Be 'local'
         @($script:Oc.mcp.servers.tokensaver.command)[0] | Should -Be 'C:\x\tokensaver.exe'
+    }
+    It "lists the contextsaver MCP next to tokensaver" {
+        @($script:Oc.mcp.servers.contextsaver.command)[0] | Should -Be 'C:\x\contextsaver.exe'
     }
     It "defines both hub models with tool support" {
         foreach ($n in @('coder', 'planner')) {
@@ -197,13 +216,17 @@ Describe "install-opencode.ps1 -ConfigOnly" {
         $cfg = Join-Path $dir "opencode.json"
         $ts = Join-Path $dir "tokensaver.exe"
         Set-Content $ts "x"
+        $cs = Join-Path $dir "contextsaver.exe"
+        Set-Content $cs "x"
         '{ "theme": "dark", "providers": { "other": { "name": "keep me" } } }' | Set-Content $cfg
-        & (Join-Path $script:Desktop "install-opencode.ps1") -ConfigOnly -Root (New-TempDir) -ConfigPath $cfg -TokenSaverExe $ts -HubUrl "http://10.0.0.5:8080/v1" | Out-Null
+        & (Join-Path $script:Desktop "install-opencode.ps1") -ConfigOnly -Root (New-TempDir) -ConfigPath $cfg -TokenSaverExe $ts -ContextSaverExe $cs -HubUrl "http://10.0.0.5:8080/v1" | Out-Null
         $out = Get-Content $cfg -Raw | ConvertFrom-Json
         $out.theme | Should -Be 'dark'
         $out.providers.other.name | Should -Be 'keep me'
         $out.providers.elai.settings.baseURL | Should -Be 'http://10.0.0.5:8080/v1'
         @($out.mcp.servers.tokensaver.command)[0] | Should -Be $ts
+        @($out.mcp.servers.contextsaver.command)[0] | Should -Be $cs
+        $out.providers.elai.models.planner.disabled | Should -BeTrue
         $out.model | Should -Be 'elai/coder'
         [int]$out.providers.elai.models.coder.limit.context | Should -Be ([int]$script:Settings.models.coder.ctx / [int]$script:Settings.models.coder.slots)
         @($out.instructions).Count | Should -Be 1

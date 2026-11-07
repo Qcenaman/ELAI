@@ -16,11 +16,20 @@
           "family": "qwen",
           "capabilities": {
             "tools": true,
-            "input": ["text"],
-            "output": ["text"],
-            "reasoning": { "supported": false }
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ],
+            "reasoning": {
+              "supported": false
+            }
           },
-          "limit": { "context": 65536, "output": 16384 }
+          "limit": {
+            "context": 65536,
+            "output": 16384
+          }
         },
         "planner": {
           "modelID": "planner",
@@ -28,14 +37,32 @@
           "family": "qwen",
           "capabilities": {
             "tools": true,
-            "input": ["text"],
-            "output": ["text"],
-            "reasoning": { "supported": true }
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ],
+            "reasoning": {
+              "supported": true
+            }
           },
-          "compatibility": { "reasoningField": "reasoning_content" },
-          "limit": { "context": 65536, "output": 16384 },
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          },
+          "limit": {
+            "context": 65536,
+            "output": 16384
+          },
           "variants": [
-            { "id": "fast", "body": { "chat_template_kwargs": { "enable_thinking": false } } }
+            {
+              "id": "fast",
+              "body": {
+                "chat_template_kwargs": {
+                  "enable_thinking": false
+                }
+              }
+            }
           ]
         }
       }
@@ -45,12 +72,29 @@
     "servers": {
       "tokensaver": {
         "type": "local",
-        "command": ["__TOKENSAVER_EXE__", "mcp"],
-        "timeout": { "startup": 60000 }
+        "command": [
+          "__TOKENSAVER_EXE__",
+          "mcp"
+        ],
+        "timeout": {
+          "startup": 60000
+        }
+      },
+      "contextsaver": {
+        "type": "local",
+        "command": [
+          "__CONTEXTSAVER_EXE__",
+          "mcp"
+        ],
+        "timeout": {
+          "startup": 60000
+        }
       }
     }
   },
-  "instructions": ["__RULES_FILE__"],
+  "instructions": [
+    "__RULES_FILE__"
+  ],
   "agents": {
     "elai-coder": {
       "description": "ELAI primary coder on the desktop hub (Qwen3-Coder-Next); follows the ELAI rules file",

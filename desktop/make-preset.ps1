@@ -50,10 +50,10 @@ $lines.Add("")
 $missing = @()
 foreach ($name in (Get-ModelNames -Settings $settings)) {
     $m = $settings.models.$name
-    $path = Find-ModelFile -FileName $m.file -ModelsDir $r.ModelsDir
+    $path = Find-ModelFile -FileName $m.file -ModelsDir $r.ModelsDir -Repo $m.repo
     if (-not $path) {
         $missing += $m.file
-        $path = Join-Path $r.ModelsDir $m.file
+        $path = Join-Path $r.ModelsDir (Get-ModelRelativePath -Repo $m.repo -FileName $m.file)
     }
     $slots = [int](Get-Prop $m 'slots' 1)
     $ctx = [int](Get-Prop $m 'ctx' 65536)
@@ -62,8 +62,8 @@ foreach ($name in (Get-ModelNames -Settings $settings)) {
     $lines.Add("; " + [string](Get-Prop $m 'role' ''))
     $lines.Add("model = $path")
     if ((Get-Prop $m 'vision' $false) -and (Get-Prop $m 'mmproj' '')) {
-        $mp = Find-ModelFile -FileName $m.mmproj -ModelsDir $r.ModelsDir
-        if (-not $mp) { $missing += $m.mmproj; $mp = Join-Path $r.ModelsDir $m.mmproj }
+        $mp = Find-ModelFile -FileName $m.mmproj -ModelsDir $r.ModelsDir -Repo $m.repo
+        if (-not $mp) { $missing += $m.mmproj; $mp = Join-Path $r.ModelsDir (Get-ModelRelativePath -Repo $m.repo -FileName $m.mmproj) }
         $lines.Add("mmproj = $mp")
     }
     $lines.Add("load-on-startup = " + $(if (Get-Prop $m 'loadOnStartup' $true) { "true" } else { "false" }))
