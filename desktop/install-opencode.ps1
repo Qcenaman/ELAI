@@ -83,10 +83,19 @@ $hub = if ($HubUrl) { $HubUrl } else { "$($r.BaseUrl)/v1" }
 $ts = if ($TokenSaverExe) { $TokenSaverExe } else { Resolve-TokenSaverExe -Configured ([string]$settings.tokensaver.exe) }
 $cfgPath = if ($ConfigPath) { $ConfigPath } else { Join-Path (Join-Path $env:USERPROFILE ".config\opencode") "opencode.json" }
 
+$cfgDir = Split-Path -Parent $cfgPath
+if (-not (Test-Path $cfgDir)) { New-Item -ItemType Directory -Path $cfgDir -Force | Out-Null }
+
+# The ELAI rules are loaded into every session through "instructions" (keeps OpenCode's own base prompt intact).
+$rulesSrc = Join-Path $PSScriptRoot "ELAI-RULES.md"
+$rulesDst = Join-Path $cfgDir "ELAI-RULES.md"
+Copy-Item -Path $rulesSrc -Destination $rulesDst -Force
+
 $templatePath = Join-Path $PSScriptRoot "opencode.elai.json"
 $templateText = Get-Content -Path $templatePath -Raw -Encoding UTF8
 $templateText = $templateText.Replace("__HUB_URL__", $hub)
 $templateText = $templateText.Replace("__TOKENSAVER_EXE__", $(if ($ts) { $ts.Replace('\', '\\') } else { "tokensaver.exe" }))
+$templateText = $templateText.Replace("__RULES_FILE__", $rulesDst.Replace('\', '\\'))
 $fragment = $templateText | ConvertFrom-Json
 
 if ($r.ApiKey) {
@@ -104,9 +113,6 @@ foreach ($name in (Get-ModelNames -Settings $settings)) {
         Set-Prop -Obj $entry.limit -Name "output" -Value $out
     }
 }
-
-$cfgDir = Split-Path -Parent $cfgPath
-if (-not (Test-Path $cfgDir)) { New-Item -ItemType Directory -Path $cfgDir -Force | Out-Null }
 
 $existing = $null
 if (Test-Path $cfgPath) {
@@ -135,9 +141,17 @@ if ($ts) {
 if ($null -eq (Get-Prop $existing 'agents')) { Set-Prop -Obj $existing -Name 'agents' -Value ([pscustomobject]@{}) }
 foreach ($a in $fragment.agents.PSObject.Properties) { Set-Prop -Obj $existing.agents -Name $a.Name -Value $a.Value }
 
+# instructions: keep whatever is there, make sure the ELAI rules file is listed once
+$instr = @()
+$cur = Get-Prop $existing 'instructions'
+if ($null -ne $cur) { $instr = @($cur | Where-Object { $_ -and ($_ -notlike '*ELAI-RULES.md') }) }
+$instr += $rulesDst
+Set-Prop -Obj $existing -Name 'instructions' -Value @($instr)
+
 $json = $existing | ConvertTo-Json -Depth 30
 [System.IO.File]::WriteAllText($cfgPath, $json + "`r`n", (New-Object System.Text.UTF8Encoding($false)))
 Write-Step "OpenCode config written: $cfgPath"
 Write-Note "hub: $hub"
 Write-Note ("tokensaver: " + $(if ($ts) { $ts } else { "(not configured)" }))
+Write-Note "rules: $rulesDst"
 Write-Note "default model elai/coder, agents elai-coder (primary) and elai-reviewer (subagent); planner variant: elai/planner#fast"

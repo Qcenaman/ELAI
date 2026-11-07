@@ -73,7 +73,7 @@ Describe "elai-common helpers" {
     It "resolves an explicit models dir as-is" {
         Resolve-ModelsDir -Configured "X:\somewhere" -Root "X:\root" | Should -Be "X:\somewhere"
     }
-    It "falls back to <root>\models when no candidate exists" {
+    It "falls back to the models folder under the root when no candidate exists" {
         $root = New-TempDir
         Resolve-ModelsDir -Configured "auto" -Root $root -Candidates @((Join-Path $root "nope")) | Should -Be (Join-Path $root "models")
     }
@@ -134,7 +134,9 @@ Describe "make-preset.ps1" {
     }
     It "writes sampling values with a dot decimal separator" {
         $script:Ini | Should -Match '(?m)^top-p = 0\.95'
-        $script:Ini | Should -Not -Match ','
+        $valueLines = @($script:Ini -split "`r?`n" | Where-Object { $_ -match '^[\w-]+ = ' })
+        $valueLines.Count | Should -BeGreaterThan 10
+        @($valueLines | Where-Object { $_ -match ',' }).Count | Should -Be 0
     }
     It "writes a launcher that TokenSaver can read the port from" {
         $script:Cmd | Should -Match ('--port ' + [int]$script:Settings.port)
@@ -151,7 +153,7 @@ Describe "make-preset.ps1" {
 Describe "opencode.elai.json" {
     BeforeAll {
         $raw = Get-Content (Join-Path $script:Desktop "opencode.elai.json") -Raw
-        $raw = $raw.Replace('__HUB_URL__', 'http://127.0.0.1:8080/v1').Replace('__TOKENSAVER_EXE__', 'C:\\x\\tokensaver.exe')
+        $raw = $raw.Replace('__HUB_URL__', 'http://127.0.0.1:8080/v1').Replace('__TOKENSAVER_EXE__', 'C:\\x\\tokensaver.exe').Replace('__RULES_FILE__', 'C:\\x\\ELAI-RULES.md')
         $script:Oc = $raw | ConvertFrom-Json
     }
     It "is valid JSON with the V2 keys" {
@@ -169,8 +171,16 @@ Describe "opencode.elai.json" {
     }
     It "defines the coder and reviewer agents" {
         $script:Oc.agents.'elai-coder'.mode | Should -Be 'primary'
+        $script:Oc.agents.'elai-coder'.model | Should -Be 'elai/coder'
         $script:Oc.agents.'elai-reviewer'.mode | Should -Be 'subagent'
-        $script:Oc.agents.'elai-coder'.system | Should -Match 'branch'
+        $script:Oc.agents.'elai-reviewer'.system | Should -Match 'APPROVED'
+        @($script:Oc.instructions)[0] | Should -Be 'C:\x\ELAI-RULES.md'
+    }
+    It "ships the rules file the coder follows" {
+        $rules = Get-Content (Join-Path $script:Desktop "ELAI-RULES.md") -Raw
+        $rules | Should -Match 'elai/<short-task>'
+        $rules | Should -Match 'GitHub Actions'
+        $rules | Should -Match 'tokensaver'
     }
 }
 
@@ -189,6 +199,9 @@ Describe "install-opencode.ps1 -ConfigOnly" {
         @($out.mcp.servers.tokensaver.command)[0] | Should -Be $ts
         $out.model | Should -Be 'elai/coder'
         [int]$out.providers.elai.models.coder.limit.context | Should -Be ([int]$script:Settings.models.coder.ctx / [int]$script:Settings.models.coder.slots)
+        @($out.instructions).Count | Should -Be 1
+        @($out.instructions)[0] | Should -Be (Join-Path $dir "ELAI-RULES.md")
+        Test-Path (Join-Path $dir "ELAI-RULES.md") | Should -BeTrue
         Test-Path ($cfg + ".bak") | Should -BeTrue
     }
 }
